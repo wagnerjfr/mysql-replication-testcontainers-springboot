@@ -56,7 +56,6 @@ class ReplicationMySQLServiceTest {
 			.withCommand("mysqld --server-id=1 --log-bin=" + LOG_BIN +".log")
 			.withUsername("root")
 			.withPassword("")
-			.withEnv("MYSQL_ROOT_HOST", "%")
 			.withNetwork(network);
 
 	@ClassRule

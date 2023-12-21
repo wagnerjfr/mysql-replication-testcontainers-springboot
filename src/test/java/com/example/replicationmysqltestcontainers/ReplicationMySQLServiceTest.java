@@ -1,7 +1,6 @@
 package com.example.replicationmysqltestcontainers;
 
 import lombok.extern.slf4j.Slf4j;
-import org.junit.ClassRule;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
@@ -47,10 +46,8 @@ class ReplicationMySQLServiceTest {
 	private static String logFile;
 	private static boolean replicationSetInSource;
 
-	@ClassRule
 	static Network network = Network.newNetwork();
 
-	@ClassRule
 	static MySQLContainer<?> source = new MySQLContainer<>(DOCKER_IMAGE)
 			//.withLogConsumer(new Slf4jLogConsumer(logger))
 			.withCommand("mysqld --server-id=1 --log-bin=" + LOG_BIN +".log")
@@ -58,7 +55,6 @@ class ReplicationMySQLServiceTest {
 			.withPassword("")
 			.withNetwork(network);
 
-	@ClassRule
 	static MySQLContainer<?> replica1 = new MySQLContainer<>(DOCKER_IMAGE)
 			//.withLogConsumer(new Slf4jLogConsumer(logger))
 			.withUsername("root")
@@ -66,7 +62,6 @@ class ReplicationMySQLServiceTest {
 			.withCommand("mysqld --server-id=2")
 			.withNetwork(network);
 
-	@ClassRule
 	static MySQLContainer<?> replica2 = new MySQLContainer<>(DOCKER_IMAGE)
 			//.withLogConsumer(new Slf4jLogConsumer(logger))
 			.withUsername("root")
@@ -135,7 +130,7 @@ class ReplicationMySQLServiceTest {
 
 	@Test
 	@Order(4)
-	@DisplayName("Configuring Source")
+	@DisplayName("Configuring Replicas")
 	public void configuringReplicas() throws SQLException {
 		Assumptions.assumeTrue(replicationSetInSource);
 

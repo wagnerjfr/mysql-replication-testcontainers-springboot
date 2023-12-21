@@ -8,5 +8,5 @@ and the primary emphasis will be on utilizing Testcontainers for testing interac
 -----------
 
 ## Full Article
-### [Testing MySQL Replication With Spring Boot and Testcontainers](https://medium.com/@wagnerjfr/testing-mysql-replication-with-spring-boot-and-testcontainers-fe2175e71f8b)
+### [Testing MySQL Replication With Spring Boot and Testcontainers](https://medium.com/gitconnected/testing-mysql-replication-with-spring-boot-and-testcontainers-fe2175e71f8b)
 _Developing an Integration Test to Simulate Data Replication in MySQL_

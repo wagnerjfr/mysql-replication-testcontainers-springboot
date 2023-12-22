@@ -40,7 +40,8 @@ class ReplicationMySQLServiceTest {
 	private static final String REPL_USER = "repl";
 	private static final String REPL_PASS = "replicapass";
 	private static final String DATABASE_NAME = "Testcontainers";
-	private static String SOURCE_HOST_NAME;
+	private static final String SOURCE_HOST_NAME = "source";
+	private static final String PASSWORD = "mypass";
 	private static int testCount;
 
 	private static String logFile;
@@ -48,39 +49,40 @@ class ReplicationMySQLServiceTest {
 
 	static Network network = Network.newNetwork();
 
-	static MySQLContainer<?> source = new MySQLContainer<>(DOCKER_IMAGE)
+	static MySQLContainer<?> sourceMySQLContainer = new MySQLContainer<>(DOCKER_IMAGE)
 			//.withLogConsumer(new Slf4jLogConsumer(logger))
 			.withCommand("mysqld --server-id=1 --log-bin=" + LOG_BIN +".log")
 			.withUsername("root")
-			.withPassword("")
+			.withPassword(PASSWORD)
+			.withCreateContainerCmdModifier(it -> it.withHostName(SOURCE_HOST_NAME))
 			.withNetwork(network);
 
-	static MySQLContainer<?> replica1 = new MySQLContainer<>(DOCKER_IMAGE)
+	static MySQLContainer<?> replicaMySQLContainer1 = new MySQLContainer<>(DOCKER_IMAGE)
 			//.withLogConsumer(new Slf4jLogConsumer(logger))
 			.withUsername("root")
-			.withPassword("")
+			.withPassword(PASSWORD)
 			.withCommand("mysqld --server-id=2")
 			.withNetwork(network);
 
-	static MySQLContainer<?> replica2 = new MySQLContainer<>(DOCKER_IMAGE)
+	static MySQLContainer<?> replicaMySQLContainer2 = new MySQLContainer<>(DOCKER_IMAGE)
 			//.withLogConsumer(new Slf4jLogConsumer(logger))
 			.withUsername("root")
-			.withPassword("")
+			.withPassword(PASSWORD)
 			.withCommand("mysqld --server-id=3")
 			.withNetwork(network);
 
-	static MySQLService sourceMySQLService, replicaMySQLService1, replicaMySQLService2;
+	static MySQLService source, replica1, replica2;
 
 	@BeforeAll
 	static void startDb() {
-		sourceMySQLService = startMySQLService(source);
+		source = startMySQLService(sourceMySQLContainer);
 	}
 
 	@AfterAll
 	static void stopDb(){
-		stopMySQLService(source);
-		stopMySQLService(replica1);
-		stopMySQLService(replica2);
+		stopMySQLService(sourceMySQLContainer);
+		stopMySQLService(replicaMySQLContainer1);
+		stopMySQLService(replicaMySQLContainer2);
 		network.close();
 	}
 
@@ -93,17 +95,16 @@ class ReplicationMySQLServiceTest {
 	@Order(1)
 	@DisplayName("Source running")
 	public void sourceContainerRunning() throws SQLException {
-		assertTrue(source.isRunning());
-		assertEquals("1", sourceMySQLService.getServerId());
-		SOURCE_HOST_NAME = source.getNetworkAliases().get(0);
+		assertTrue(sourceMySQLContainer.isRunning());
+		assertEquals("1", source.getServerId());
 	}
 
 	@Test
 	@Order(2)
 	@DisplayName("Configuring Source")
 	public void configuringSource() throws SQLException {
-		sourceMySQLService.setReplicationUser(REPL_USER, REPL_PASS);
-		Map<MasterStatus, String> map = sourceMySQLService.showMasterStatus();
+		source.setReplicationUser(REPL_USER, REPL_PASS);
+		Map<MasterStatus, String> map = source.showMasterStatus();
 
 		assertEquals(2, map.size());
 		logFile = map.get(MasterStatus.File);
@@ -120,12 +121,12 @@ class ReplicationMySQLServiceTest {
 	public void replicasContainerRunning() throws SQLException {
 		Assumptions.assumeTrue(replicationSetInSource);
 
-		replicaMySQLService1 = startMySQLService(replica1);
-		replicaMySQLService2 = startMySQLService(replica2);
-		assertTrue(replica1.isRunning());
-		assertTrue(replica2.isRunning());
-		assertEquals("2", replicaMySQLService1.getServerId());
-		assertEquals("3", replicaMySQLService2.getServerId());
+		replica1 = startMySQLService(replicaMySQLContainer1);
+		replica2 = startMySQLService(replicaMySQLContainer2);
+		assertTrue(replicaMySQLContainer1.isRunning());
+		assertTrue(replicaMySQLContainer2.isRunning());
+		assertEquals("2", replica1.getServerId());
+		assertEquals("3", replica2.getServerId());
 	}
 
 	@Test
@@ -134,7 +135,7 @@ class ReplicationMySQLServiceTest {
 	public void configuringReplicas() throws SQLException {
 		Assumptions.assumeTrue(replicationSetInSource);
 
-		List<MySQLService> replicas = Arrays.asList(replicaMySQLService1, replicaMySQLService2);
+		List<MySQLService> replicas = Arrays.asList(replica1, replica2);
 		for (MySQLService mySQLService : replicas) {
 			mySQLService.setReplicationSlave(SOURCE_HOST_NAME, REPL_USER, REPL_PASS, logFile);
 		}
@@ -161,21 +162,21 @@ class ReplicationMySQLServiceTest {
 	@Order(5)
 	@DisplayName("Creating database in Source")
 	public void createDatabaseInSource() throws SQLException {
-		sourceMySQLService.createDatabase(DATABASE_NAME);
-		Set<String> databases = sourceMySQLService.showDatabases();
+		source.createDatabase(DATABASE_NAME);
+		Set<String> databases = source.showDatabases();
 		log.info("Source databases: {}", databases);
-		assertTrue(databases.contains(DATABASE_NAME));
+		assertTrue(databases.contains(DATABASE_NAME), "Database doesn't exist.");
 	}
 
 	@Test
 	@Order(6)
 	@DisplayName("Checking database in Replicas")
 	public void checkDatabaseInReplicas() throws SQLException {
-		List<MySQLService> replicas = Arrays.asList(replicaMySQLService1, replicaMySQLService2);
+		List<MySQLService> replicas = Arrays.asList(replica1, replica2);
 		for (MySQLService mySQLService : replicas) {
 			Set<String> databases = mySQLService.showDatabases();
 			log.info("Replica{} databases: {}", replicas.indexOf(mySQLService) + 1, databases);
-			assertTrue(databases.contains(DATABASE_NAME));
+			assertTrue(databases.contains(DATABASE_NAME), "Database doesn't exist.");
 		}
 	}
 

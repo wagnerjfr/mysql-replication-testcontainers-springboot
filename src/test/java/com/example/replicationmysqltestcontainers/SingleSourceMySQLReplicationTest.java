@@ -31,9 +31,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SpringBootTest
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-class ReplicationMySQLServiceTest {
+class SingleSourceMySQLReplicationTest {
 
-	private static final Logger logger = LoggerFactory.getLogger(ReplicationMySQLServiceTest.class);
+	private static final Logger logger = LoggerFactory.getLogger(SingleSourceMySQLReplicationTest.class);
 
 	private static final String DOCKER_IMAGE = "mysql:5.7";
 	private static final String LOG_BIN = "mysql-bin-1";

@@ -1,5 +1,9 @@
 package com.example.replicationmysqltestcontainers;
 
+import com.example.replicationmysqltestcontainers.slavestatus.SlaveStatusRow;
+import lombok.Getter;
+import lombok.Setter;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -11,9 +15,25 @@ import java.util.Map;
 import java.util.Set;
 
 public class MySQLService {
+    private static final String REPL_USER = "repl";
+
+    @Getter
+    private final String id;
+    @Getter
+    private final String hostName;
+    @Getter
+    private final String replicationUser;
+    @Getter
+    private final String replicationPass = "replicapass";
+    @Setter @Getter
+    private String masterLogFile;
+
     private final ConnectionPool connectionPool;
 
-    public MySQLService(ConnectionPool connectionPool) {
+    public MySQLService(String id, String hostNamePrefix, ConnectionPool connectionPool) {
+        this.id = id;
+        this.hostName = hostNamePrefix + id;
+        this.replicationUser = REPL_USER + id;
         this.connectionPool = connectionPool;
     }
 
@@ -27,16 +47,9 @@ public class MySQLService {
         }
     }
 
-    public void setReplicationUser(String user, String pass) throws SQLException {
-        try (Connection connection = this.connectionPool.getConnection()) {
-            String query = "CREATE USER '" + user + "'@'%' IDENTIFIED BY '" + pass + "';";
-            PreparedStatement ps = connection.prepareStatement(query);
-            ps.executeUpdate();
-
-            query = "GRANT REPLICATION SLAVE ON *.* TO 'repl'@'%';";
-            ps = connection.prepareStatement(query);
-            ps.executeUpdate();
-        }
+    public void setReplicationUser() throws SQLException {
+        performUpdate("CREATE USER '" + replicationUser + "'@'%' IDENTIFIED BY '" + replicationPass + "';");
+        performUpdate("GRANT REPLICATION SLAVE ON *.* TO '" + replicationUser + "'@'%';");
     }
 
     public Map<MasterStatus, String> showMasterStatus() throws SQLException {
@@ -55,28 +68,35 @@ public class MySQLService {
     }
 
     public void setReplicationSlave(String host, String user, String pass, String logFile) throws SQLException {
-        try (Connection connection = this.connectionPool.getConnection()) {
-            String query = String.format("CHANGE MASTER TO MASTER_HOST='%s', MASTER_USER='%s', MASTER_PASSWORD='%s', MASTER_LOG_FILE='%s';",
-                    host, user, pass, logFile);
-            PreparedStatement ps = connection.prepareStatement(query);
-            ps.executeUpdate();
-
-            query = "START SLAVE;";
-            ps = connection.prepareStatement(query);
-            ps.executeUpdate();
-        }
+        String query = String.format("CHANGE MASTER TO MASTER_HOST='%s', MASTER_USER='%s', MASTER_PASSWORD='%s', MASTER_LOG_FILE='%s';",
+                host, user, pass, logFile);
+        performUpdate(query);
     }
 
-    public Map<SlaveStatus, String> showSlaveStatus() throws SQLException {
+    public void setReplicationSlave(String host, String user, String pass) throws SQLException {
+        String query = String.format("CHANGE MASTER TO MASTER_HOST='%s', MASTER_USER='%s', MASTER_PASSWORD='%s', MASTER_AUTO_POSITION=1 FOR CHANNEL '%s';",
+                host, user, pass, host);
+        performUpdate(query);
+    }
+
+    public void startSlave() throws SQLException {
+        performUpdate("START SLAVE;");
+    }
+
+    public void resetMaster() throws SQLException {
+        performUpdate("RESET MASTER;");
+    }
+
+    public Map<Integer, SlaveStatusRow> showSlaveStatus() throws SQLException {
         try (Connection connection = this.connectionPool.getConnection()) {
             String query = "SHOW SLAVE STATUS;";
             PreparedStatement ps = connection.prepareStatement(query);
             ResultSet rs = ps.executeQuery();
-            rs.next();
 
-            Map<SlaveStatus, String> map = new HashMap<>();
-            for (SlaveStatus val : SlaveStatus.values()) {
-                map.put(val, rs.getString(val.name()));
+            int idx = 1;
+            Map<Integer, SlaveStatusRow> map = new HashMap<>();
+            while (rs.next()) {
+                map.put(idx++, SlaveStatusRow.create(rs));
             }
             return map;
         }
@@ -101,6 +121,23 @@ public class MySQLService {
                 set.add(rs.getString("Database"));
             }
             return set;
+        }
+    }
+
+    public String getGlobalGtidExecuted() throws SQLException {
+        try (Connection connection = this.connectionPool.getConnection()) {
+            String query = "SELECT @@global.gtid_executed;";
+            PreparedStatement ps = connection.prepareStatement(query);
+            ResultSet rs = ps.executeQuery();
+            rs.next();
+            return rs.getString(1);
+        }
+    }
+
+    private void performUpdate(String query) throws SQLException {
+        try (Connection connection = this.connectionPool.getConnection()) {
+            PreparedStatement ps = connection.prepareStatement(query);
+            ps.executeUpdate();
         }
     }
 }

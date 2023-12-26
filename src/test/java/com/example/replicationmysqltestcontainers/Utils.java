@@ -2,6 +2,7 @@ package com.example.replicationmysqltestcontainers;
 
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.containers.Network;
+import org.testcontainers.containers.output.Slf4jLogConsumer;
 
 public class Utils {
 
@@ -16,7 +17,8 @@ public class Utils {
     }
 
     private static String getCommand(int id, String logFile) {
-        return String.format("mysqld --server-id=%s --log-bin=%s --relay_log_info_repository=TABLE --master-info-repository=TABLE --gtid-mode=on --enforce-gtid-consistency", id, logFile);
+        return String.format("mysqld --server-id=%s --log-bin=%s --relay_log_info_repository=TABLE " +
+                "--master-info-repository=TABLE --gtid-mode=on --enforce-gtid-consistency", id, logFile);
     }
 
     public static MySQLService startMySQLService(String id, String hostNamePrefix, MySQLContainer<?> container) {
